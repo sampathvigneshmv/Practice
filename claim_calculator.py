@@ -133,7 +133,7 @@ def calculate_home_claim(claim: HomeClaim) -> dict:
         },
         "gross_loss": round(gross, 2),
         "deductible_applied": round(min(claim.deductible, gross), 2),
-        "net_payout": round(gross, 2),
+        "net_payout": round(after_deductible, 2),
         "valuation_method": "Replacement Cost Value" if claim.replacement_cost_value else "Actual Cash Value",
     }
 
