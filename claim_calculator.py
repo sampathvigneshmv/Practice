@@ -97,22 +97,16 @@ def calculate_home_claim(claim: HomeClaim) -> dict:
     if errors:
         return {"errors": errors}
 
-    # BUG 1: Depreciation logic is inverted — ACV should multiply by (1 - rate),
-    # but here it multiplies by the raw rate, shrinking the payout far too much.
-    # RCV branch is also swapped: it now applies depreciation when it shouldn't.
+    # Dwelling: apply depreciation if ACV policy
     if claim.replacement_cost_value:
-        dwelling_paid = min(
-            claim.dwelling_damage * (1 - claim.depreciation_rate),  # wrong: RCV never depreciates
-            claim.dwelling_limit,
-        )
+        dwelling_paid = min(claim.dwelling_damage, claim.dwelling_limit)
     else:
         dwelling_paid = min(
-            claim.dwelling_damage * claim.depreciation_rate,         # wrong: should be (1 - rate)
+            claim.dwelling_damage * (1 - claim.depreciation_rate),
             claim.dwelling_limit,
         )
 
-    # BUG 2: Personal property is capped against the dwelling limit (Coverage A)
-    # instead of the personal property limit (Coverage C).
+    # Personal property: cap at Coverage C limit
     pp_paid = min(claim.personal_property_loss, claim.dwelling_limit)
 
     # ALE: cap at Coverage D limit
@@ -121,12 +115,11 @@ def calculate_home_claim(claim: HomeClaim) -> dict:
     # Liability: cap at liability limit
     liability_paid = min(claim.liability_claim, claim.liability_limit)
 
-    # BUG 3: other_structures is silently excluded from gross loss.
+    # Other structures
     other_paid = claim.other_structures
-    gross = dwelling_paid + pp_paid + ale_paid + liability_paid   # other_paid omitted
 
-    # BUG 4: net_payout returns gross instead of after-deductible amount,
-    # so the deductible is never actually subtracted from the payout.
+    gross = dwelling_paid + pp_paid + ale_paid + liability_paid + other_paid
+
     after_deductible = max(0.0, gross - claim.deductible)
 
     return {
@@ -140,7 +133,7 @@ def calculate_home_claim(claim: HomeClaim) -> dict:
         },
         "gross_loss": round(gross, 2),
         "deductible_applied": round(min(claim.deductible, gross), 2),
-        "net_payout": round(gross, 2),                               # wrong: should be after_deductible
+        "net_payout": round(gross, 2),
         "valuation_method": "Replacement Cost Value" if claim.replacement_cost_value else "Actual Cash Value",
     }
 
