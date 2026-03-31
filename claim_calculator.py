@@ -107,7 +107,7 @@ def calculate_home_claim(claim: HomeClaim) -> dict:
         )
 
     # Personal property: cap at Coverage C limit
-    pp_paid = min(claim.personal_property_loss, claim.personal_property_limit)
+    pp_paid = min(claim.personal_property_loss, claim.dwelling_limit)
 
     # ALE: cap at Coverage D limit
     ale_paid = min(claim.additional_living_expenses, claim.ale_limit)
@@ -296,10 +296,10 @@ def interactive_home() -> None:
 
 
 def main() -> None:
-    print("\n╔══════════════════════════════════════════╗")
-    print("║      CLAIM AMOUNT CALCULATOR             ║")
-    print("║      Auto LOB  |  Home LOB               ║")
-    print("╚══════════════════════════════════════════╝")
+    print("\n==========================================")
+    print("      CLAIM AMOUNT CALCULATOR")
+    print("      Auto LOB  |  Home LOB")
+    print("==========================================")
 
     while True:
         print("\nSelect Line of Business:")
