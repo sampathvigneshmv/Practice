@@ -97,17 +97,23 @@ def calculate_home_claim(claim: HomeClaim) -> dict:
     if errors:
         return {"errors": errors}
 
-    # Dwelling: apply depreciation if ACV policy
+    # BUG 1: Depreciation logic is inverted — ACV should multiply by (1 - rate),
+    # but here it multiplies by the raw rate, shrinking the payout far too much.
+    # RCV branch is also swapped: it now applies depreciation when it shouldn't.
     if claim.replacement_cost_value:
-        dwelling_paid = min(claim.dwelling_damage, claim.dwelling_limit)
+        dwelling_paid = min(
+            claim.dwelling_damage * (1 - claim.depreciation_rate),  # wrong: RCV never depreciates
+            claim.dwelling_limit,
+        )
     else:
         dwelling_paid = min(
-            claim.dwelling_damage * (1 - claim.depreciation_rate),
+            claim.dwelling_damage * claim.depreciation_rate,         # wrong: should be (1 - rate)
             claim.dwelling_limit,
         )
 
-    # Personal property: cap at Coverage C limit
-    pp_paid = min(claim.personal_property_loss, claim.personal_property_limit)
+    # BUG 2: Personal property is capped against the dwelling limit (Coverage A)
+    # instead of the personal property limit (Coverage C).
+    pp_paid = min(claim.personal_property_loss, claim.dwelling_limit)
 
     # ALE: cap at Coverage D limit
     ale_paid = min(claim.additional_living_expenses, claim.ale_limit)
@@ -115,11 +121,12 @@ def calculate_home_claim(claim: HomeClaim) -> dict:
     # Liability: cap at liability limit
     liability_paid = min(claim.liability_claim, claim.liability_limit)
 
-    # Other structures
+    # BUG 3: other_structures is silently excluded from gross loss.
     other_paid = claim.other_structures
+    gross = dwelling_paid + pp_paid + ale_paid + liability_paid   # other_paid omitted
 
-    gross = dwelling_paid + pp_paid + ale_paid + liability_paid + other_paid
-
+    # BUG 4: net_payout returns gross instead of after-deductible amount,
+    # so the deductible is never actually subtracted from the payout.
     after_deductible = max(0.0, gross - claim.deductible)
 
     return {
@@ -133,7 +140,7 @@ def calculate_home_claim(claim: HomeClaim) -> dict:
         },
         "gross_loss": round(gross, 2),
         "deductible_applied": round(min(claim.deductible, gross), 2),
-        "net_payout": round(after_deductible, 2),
+        "net_payout": round(gross, 2),                               # wrong: should be after_deductible
         "valuation_method": "Replacement Cost Value" if claim.replacement_cost_value else "Actual Cash Value",
     }
 
@@ -296,10 +303,10 @@ def interactive_home() -> None:
 
 
 def main() -> None:
-    print("\n╔══════════════════════════════════════════╗")
-    print("║      CLAIM AMOUNT CALCULATOR             ║")
-    print("║      Auto LOB  |  Home LOB               ║")
-    print("╚══════════════════════════════════════════╝")
+    print("\n==========================================")
+    print("      CLAIM AMOUNT CALCULATOR")
+    print("      Auto LOB  |  Home LOB")
+    print("==========================================")
 
     while True:
         print("\nSelect Line of Business:")
